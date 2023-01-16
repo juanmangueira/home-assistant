@@ -55,6 +55,7 @@ from tests.common import MockConfigEntry
         ),
     ],
 )
+
 async def test_setups(hass: HomeAssistant, protocol, connection, title):
     """Test flow for setting up the available AlarmDecoder protocols."""
 
@@ -425,9 +426,10 @@ async def test_one_device_allowed(hass, protocol, connection):
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-
+    print(result)
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "user"
+
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -442,3 +444,106 @@ async def test_one_device_allowed(hass, protocol, connection):
     )
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_validate_zone_input():
+    """Test should return a empty dictonary if there's no timezone error."""
+    zone_settings = {
+        CONF_ZONE_NAME: "Front Entry",
+        CONF_ZONE_TYPE: BinarySensorDeviceClass.WINDOW,
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+    """Test should return a dictonary with relay_inclusive error."""
+    zone_settings = {
+        CONF_RELAY_ADDR: "zone_relayaddr",
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {'base': 'relay_inclusive', 'zone_relayaddr': 'int'}
+
+    """Test should return a empty dictionary if RELAY_ADDR and RELAY_CHAN is present, and the values should be numbers."""
+    zone_settings = {
+        CONF_RELAY_ADDR: "1",
+        CONF_RELAY_CHAN: "1"
+    }
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+    """Test should return a dictonary with 'relay_inclusive' error for CONF_RELAY_CHAN constant."""
+    zone_settings = {
+        CONF_RELAY_CHAN: "zone_relayaddr",
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {'base': 'relay_inclusive', 'zone_relaychan': 'int'}
+
+    """Test should return an empty array if the value is integer."""
+    zone_settings = {
+        CONF_ZONE_NUMBER: "1"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+    """Test should return an error about not using keys with type INT."""
+    zone_settings = {
+        CONF_ZONE_NUMBER:"",
+        CONF_ZONE_LOOP:"",
+        CONF_RELAY_ADDR: "",
+        CONF_RELAY_CHAN:""
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {'zone_loop': 'loop_rfid', 'zone_number': 'int', 'zone_relayaddr': 'int', 'zone_relaychan': 'int'}
+    
+    """Test should return an empty array if each value is integer."""
+    zone_settings = {
+        CONF_ZONE_NUMBER:"1",
+        CONF_ZONE_LOOP:"1",
+        CONF_RELAY_ADDR: "1",
+        CONF_RELAY_CHAN:"1",
+        CONF_ZONE_RFID: "1"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+
+    """Test should return an error if CONF_ZONE_LOOP and CONF_ZONE_RFID are not together."""
+    zone_settings = {
+        CONF_ZONE_LOOP: "zone_loop"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {'zone_loop': 'loop_rfid'}
+
+    """Test should return an error if CONF_ZONE_LOOP and CONF_ZONE_RFID are together."""
+    zone_settings = {
+        CONF_ZONE_LOOP: "1",
+        CONF_ZONE_RFID: "1"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+    """Test should return an error if CONF_ZONE_LOOP value is greater than 4."""
+    zone_settings = {
+        CONF_ZONE_LOOP: "5"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {'zone_loop': 'loop_range'}
+
+    """Test should return an empty array if the CONF_ZONE_LOOP value is smaller than 4 and is followed by CONF_ZONE_RFID."""
+    zone_settings = {
+        CONF_ZONE_LOOP: "1",
+        CONF_ZONE_RFID: "1"
+    }
+    
+    result = config_flow._validate_zone_input(zone_settings)
+    assert result == {}
+
+    
